@@ -1,0 +1,35 @@
+sequenceDiagram
+  participant G as Agent Worker
+  participant S as MCP Tool Server
+  participant DB as PostgreSQL
+  participant B as Business Data Source
+
+  G->>S: Call tool (name, arguments, user and organization context)
+  S->>S: Authenticate caller and validate arguments
+  alt Invalid credentials or arguments
+    S->>DB: Audit log (rejected)
+    S-->>G: Error: invalid request
+  else Valid
+    S->>DB: Check role permission for tool and organization
+    alt Not permitted
+      S->>DB: Audit log (denied)
+      S-->>G: Error: forbidden
+    else Permitted
+      alt Tool is sensitive
+        S-->>G: Approval required (see SD-10)
+      else Safe tool
+        S->>B: Execute scoped query or operation
+        alt Timeout or source error
+          S->>DB: Audit log (failed)
+          S-->>G: Error: tool unavailable
+        else Success
+          S->>DB: Audit log (success)
+          S-->>G: Result
+        end
+      end
+    end
+  end
+
+  G->>S: Save or export report
+  S->>DB: Store report record and audit log
+  S-->>G: Report reference

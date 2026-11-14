@@ -1,0 +1,47 @@
+sequenceDiagram
+  actor KM as Knowledge Manager
+  participant W as Web App
+  participant A as API
+  participant S3 as Object Storage
+  participant DB as PostgreSQL
+  participant Q as Redis Queue
+  participant WK as Ingestion Worker
+  participant E as Embedding Model
+  participant V as Qdrant
+
+  KM->>W: Select collection and file
+  W->>A: POST /documents (multipart)
+  A->>A: Check permission, type, size, content signature
+  alt Invalid type or too large
+    A-->>W: 422 Rejected
+  else Valid
+    A->>DB: Look up checksum in organization
+    alt Duplicate found
+      A-->>W: 409 Duplicate (existing document)
+    else New
+      A->>S3: Store original
+      A->>DB: Insert document, version, job (status queued)
+      A->>Q: Enqueue ingestion job
+      A-->>W: 202 Accepted
+    end
+  end
+
+  Q->>WK: Deliver job
+  WK->>DB: Status processing
+  WK->>S3: Fetch original
+  WK->>WK: Extract, clean, chunk with page and offset metadata
+  WK->>E: Embed chunks
+  alt Failure
+    WK->>DB: Increment attempts
+    alt Attempts left
+      WK->>Q: Requeue with backoff
+    else Exhausted
+      WK->>DB: Status failed with reason
+    end
+  else Success
+    WK->>V: Upsert vectors (organization, collection, document ids)
+    WK->>DB: Insert chunks, status ready
+  end
+
+  W->>A: GET /documents/id (polling)
+  A-->>W: Current status

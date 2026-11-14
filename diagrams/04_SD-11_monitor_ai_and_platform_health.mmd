@@ -1,0 +1,34 @@
+sequenceDiagram
+  participant S as API and Workers
+  participant P as Prometheus
+  participant LS as LangSmith
+  actor AIA as AI Administrator
+  participant GR as Grafana
+  participant W as Web App
+  participant A as API
+  participant DB as PostgreSQL
+
+  loop Continuously
+    S-)LS: Traces (LLM calls, retrieval, tool calls, tokens)
+    P->>S: Scrape /metrics
+    S-->>P: Request, latency, error, queue, ingestion metrics
+  end
+
+  AIA->>GR: Open dashboards
+  GR->>P: Query metrics
+  P-->>GR: Time series
+  GR-->>AIA: Health, latency, volume, errors
+
+  AIA->>W: Open slow or failed AI request
+  W->>A: GET trace reference
+  A->>A: Check AI Administrator role and organization
+  alt Not authorized
+    A-->>W: 403 Forbidden
+  else Authorized
+    A-->>W: Link to LangSmith trace
+  end
+
+  AIA->>W: Search audit log
+  W->>A: GET /audit-logs (filters)
+  A->>DB: Query records for organization
+  A-->>W: Audit entries

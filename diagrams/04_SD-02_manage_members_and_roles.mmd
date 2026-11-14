@@ -1,0 +1,32 @@
+sequenceDiagram
+  actor Admin as Organization Admin
+  actor Inv as Invitee
+  participant W as Web App
+  participant A as API
+  participant DB as PostgreSQL
+  participant M as Email Service
+
+  Admin->>W: Invite email with role
+  W->>A: POST /members/invitations
+  A->>A: Check caller is Organization Admin
+  alt Not authorized
+    A-->>W: 403 Forbidden
+  else Authorized
+    A->>DB: Save invitation (token hash, expiry) and audit log
+    A->>M: Send invitation email
+    A-->>W: 201 Created
+  end
+
+  Inv->>W: Open link, set name and password
+  W->>A: POST /invitations/accept
+  alt Token invalid or expired
+    A-->>W: 400 Invalid invitation
+  else Valid
+    A->>DB: Create user if needed, create membership
+    A-->>W: Account ready
+  end
+
+  Admin->>W: Change role or deactivate member
+  W->>A: PATCH /members/id
+  A->>DB: Update role or status, revoke sessions if deactivated, audit log
+  A-->>W: Updated member

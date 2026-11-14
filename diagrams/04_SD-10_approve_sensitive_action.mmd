@@ -1,0 +1,39 @@
+sequenceDiagram
+  participant G as Agent Worker
+  participant DB as PostgreSQL
+  participant M as Email Service
+  actor Ap as Approver
+  actor Rq as Requester
+  participant W as Web App
+  participant A as API
+  participant S as MCP Tool Server
+
+  G->>DB: Create approval request (pending, expiry) and checkpoint
+  G->>G: Pause run (graph interrupt)
+  G->>M: Notify approvers
+  Ap->>W: Open approval inbox
+  W->>A: GET /approvals/id
+  A-->>W: Proposed action and context
+
+  alt Approve
+    W->>A: POST /approvals/id/approve
+    A->>A: Check approver role and status still pending
+    A->>DB: Record decision
+    A->>G: Resume run
+    G->>S: Execute action
+    S-->>G: Result (audit logged)
+  else Reject
+    W->>A: POST /approvals/id/reject
+    A->>DB: Record decision
+    A->>G: Resume with rejection
+    G->>G: Skip action and report outcome
+  else Cancel by requester
+    Rq->>W: Cancel request
+    W->>A: POST /approvals/id/cancel
+    A->>DB: Status cancelled
+    A->>G: Resume with cancellation
+  else Expired
+    G->>DB: Status expired
+    G->>G: Continue without action
+  end
+  Note over A,DB: A decision is recorded once. A second decision on the same request is rejected.

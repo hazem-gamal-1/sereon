@@ -1,0 +1,47 @@
+sequenceDiagram
+  actor U as User
+  participant W as Web App
+  participant A as API
+  participant DB as PostgreSQL
+  participant S3 as Object Storage
+  participant V as Qdrant
+  participant Q as Redis Queue
+
+  U->>W: Open document list
+  W->>A: GET /documents
+  A->>DB: Query permitted documents
+  A-->>W: Documents with metadata and status
+
+  alt Open original
+    W->>A: GET /documents/id/file
+    A->>DB: Verify access
+    alt No access
+      A-->>W: 404 Not Found
+    else Allowed
+      A->>S3: Create short-lived signed URL
+      A-->>W: Signed URL
+    end
+  else Upload new version
+    W->>A: POST /documents/id/versions
+    A->>S3: Store new file
+    A->>DB: Insert version, set current, job queued
+    A->>Q: Enqueue ingestion (as in SD-04)
+    A-->>W: 202 Accepted
+  else Re-index
+    W->>A: POST /documents/id/reindex
+    A->>DB: Mark job queued
+    A->>Q: Enqueue ingestion
+    A-->>W: 202 Accepted
+  else Delete
+    W->>A: DELETE /documents/id
+    A->>DB: Mark deleting and audit log
+    A->>V: Delete vectors by document id
+    A->>S3: Delete files
+    alt Cleanup fails
+      A->>DB: Keep status deleting for retry
+      A-->>W: 202 Accepted (cleanup pending)
+    else Cleanup done
+      A->>DB: Remove records
+      A-->>W: 204 No Content
+    end
+  end

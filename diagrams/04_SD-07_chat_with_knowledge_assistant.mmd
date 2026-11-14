@@ -1,0 +1,54 @@
+sequenceDiagram
+  actor U as Employee
+  participant W as Web App
+  participant A as API
+  participant DB as PostgreSQL
+  participant R as Retrieval Service
+  participant L as LLM Gateway
+  participant M as LLM Provider
+  participant LS as LangSmith
+
+  U->>W: Send message
+  W->>A: POST /conversations/id/messages (SSE)
+  A->>DB: Verify ownership, load history and summary
+  A->>DB: Save user message
+  A->>L: Decide if internal knowledge is needed
+  L->>M: Classify and rewrite as standalone question
+  M-->>L: Decision
+  L-->>A: Decision
+  alt Knowledge needed
+    A->>R: Search (as in SD-06)
+    R-->>A: Passages
+    A->>A: Evaluate relevance of passages
+    alt Insufficient evidence
+      A-->>W: Stream "not enough information found" with closest sources
+    else Sufficient
+      A->>L: Grounded prompt (passages marked as untrusted data)
+      L->>M: Generate
+      M-->>L: Token stream
+      L-->>A: Tokens
+      A-->>W: Stream tokens
+    end
+  else General request
+    A->>L: Prompt with history only
+    L->>M: Generate
+    M-->>L: Token stream
+    L-->>A: Tokens
+    A-->>W: Stream tokens
+  end
+  A->>DB: Save assistant message and citations
+  opt History exceeds context budget
+    A->>L: Summarize older messages
+    A->>DB: Store updated summary
+  end
+  A-->>W: Final event with citations
+  A-)LS: Send trace
+  alt Provider error or timeout
+    A-->>W: Error event, partial text kept
+  end
+
+  U->>W: Open citation
+  W->>A: GET /documents/id/file (see SD-05)
+  U->>W: Rate answer
+  W->>A: POST /messages/id/feedback
+  A->>DB: Save feedback

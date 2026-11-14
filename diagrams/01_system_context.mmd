@@ -1,0 +1,36 @@
+flowchart LR
+  OA([Organization Admin])
+  KM([Knowledge Manager])
+  EMP([Employee])
+  AIA([AI Administrator])
+
+  subgraph BOUNDARY["Sereon system boundary"]
+    SYS["Sereon<br/>Enterprise Knowledge Intelligence<br/>and Automation Platform"]
+  end
+
+  LLM["Hosted LLM, Embedding<br/>and Reranking APIs"]
+  LS["LangSmith"]
+  BIZ["Business Data Source<br/>sample sales database"]
+  MAIL["Email Service"]
+  SRC["Knowledge Connectors<br/>Google Drive, Notion, SharePoint,<br/>Confluence, Slack, Websites, SQL"]
+  VLLM["Self-hosted open-weight models<br/>vLLM"]
+
+  OA -->|"manage organization, members, roles"| SYS
+  KM -->|"upload documents, manage collections"| SYS
+  EMP -->|"search, chat, run tasks, approve"| SYS
+  AIA -->|"inspect traces, run evaluations"| SYS
+
+  SYS -->|"prompts, texts to embed"| LLM
+  LLM -->|"completions, embeddings"| SYS
+  SYS -->|"traces, evaluation data"| LS
+  SYS -->|"tool calls via MCP"| BIZ
+  SYS -->|"invitation and approval emails"| MAIL
+  SRC -.->|"future: import content"| SYS
+  SYS -.->|"future: inference requests"| VLLM
+
+  classDef existing fill:#d4edda,stroke:#2e7d32,color:#000
+  classDef planned fill:#fff3cd,stroke:#b8860b,color:#000
+  classDef future fill:#eeeeee,stroke:#777,stroke-dasharray:5 5,color:#000
+  class LLM,LS,MAIL existing
+  class BIZ planned
+  class SRC,VLLM future

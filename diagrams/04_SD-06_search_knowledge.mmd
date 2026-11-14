@@ -1,0 +1,38 @@
+sequenceDiagram
+  actor U as Employee
+  participant W as Web App
+  participant A as API
+  participant DB as PostgreSQL
+  participant R as Retrieval Service
+  participant L as LLM Gateway
+  participant E as Embedding Model
+  participant V as Qdrant
+  participant RR as Reranker
+
+  U->>W: Query with optional filters
+  W->>A: POST /search
+  A->>DB: Resolve collections the user may access
+  A->>R: Search (query, filters, organization, allowed collections)
+  opt Query transformation enabled
+    R->>L: Rewrite or expand query
+    L-->>R: Query variants
+  end
+  R->>E: Embed query variants
+  par Semantic search
+    R->>V: Dense search with organization and collection filter
+  and Keyword search
+    R->>V: Sparse search with same filter
+  end
+  V-->>R: Two ranked candidate lists
+  R->>R: Fuse with Reciprocal Rank Fusion
+  R->>RR: Rerank top candidates
+  alt Reranker unavailable
+    R->>R: Keep fused order
+  end
+  R->>DB: Apply document-level overrides, load chunk text
+  R-->>A: Ranked passages with sources
+  alt No results
+    A-->>W: Empty result set
+  else Results
+    A-->>W: Passages, citations, scores
+  end

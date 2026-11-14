@@ -1,0 +1,53 @@
+sequenceDiagram
+  actor U as Employee
+  participant W as Web App
+  participant A as API
+  participant Q as Redis Queue
+  participant G as Agent Worker
+  participant DB as PostgreSQL
+  participant R as Retrieval Service
+  participant MC as MCP Data Tools
+  participant L as LLM Gateway
+
+  U->>W: Submit complex request
+  W->>A: POST /agent-runs
+  A->>DB: Create run (queued)
+  A->>Q: Enqueue run
+  A-->>W: 202 with run id
+  W->>A: Subscribe to progress (SSE)
+
+  Q->>G: Start run
+  G->>L: Supervisor creates plan
+  L-->>G: Ordered task list
+  G->>DB: Save checkpoint and step plan
+  G-->>W: Progress: plan created
+
+  loop For each planned task
+    alt Research task
+      G->>R: Search internal knowledge
+      R-->>G: Evidence
+    else Data analysis task
+      G->>MC: Call data tool (see SD-09)
+      MC-->>G: Dataset or aggregates
+      G->>G: Compute comparisons
+    end
+    G->>DB: Save checkpoint and step result
+    G-->>W: Progress: step done with elapsed time
+  end
+
+  G->>L: Validate conclusions against evidence
+  alt Evidence incomplete or contradictory
+    G->>R: Additional research (bounded retries)
+  end
+  G->>L: Generate report with references
+  G->>DB: Save report, run completed
+  G-->>W: Final report
+
+  alt Step fails
+    G->>G: Retry with backoff
+    alt Still failing
+      G->>DB: Run failed with reason
+      G-->>W: Error summary
+    end
+  end
+  Note over G,DB: After a worker restart the run resumes from the last checkpoint.

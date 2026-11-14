@@ -1,0 +1,36 @@
+sequenceDiagram
+  actor U as User
+  participant W as Web App
+  participant A as API
+  participant DB as PostgreSQL
+
+  U->>W: Submit organization, email, password
+  W->>A: POST /auth/register
+  A->>A: Validate input, check rate limit
+  alt Email already registered
+    A-->>W: 409 Conflict
+  else Valid
+    A->>DB: Create organization, user, Admin membership (one transaction)
+    A-->>W: 201 Created
+  end
+
+  U->>W: Sign in with email and password
+  W->>A: POST /auth/login
+  A->>DB: Load user and memberships
+  alt Unknown user, wrong password, or inactive
+    A-->>W: 401 Unauthorized
+  else Too many attempts
+    A-->>W: 429 Too Many Requests
+  else Valid
+    A->>DB: Store hash of refresh token
+    A-->>W: Access token and refresh token
+  end
+
+  W->>A: POST /auth/refresh
+  alt Token valid and not revoked
+    A->>DB: Rotate refresh token
+    A-->>W: New token pair
+  else Invalid or reused
+    A->>DB: Revoke token family
+    A-->>W: 401 Unauthorized
+  end

@@ -1,0 +1,43 @@
+sequenceDiagram
+  actor AIA as AI Administrator
+  participant W as Web App
+  participant A as API
+  participant DB as PostgreSQL
+  participant Q as Redis Queue
+  participant EV as Evaluation Runner
+  participant R as Retrieval Service
+  participant L as LLM Gateway
+  participant LS as LangSmith
+
+  AIA->>W: Create dataset and items
+  W->>A: POST /eval/datasets
+  A->>DB: Save questions, expected documents or chunks, answers
+  AIA->>W: Start run with configuration
+  W->>A: POST /eval/runs
+  A->>DB: Create run (queued)
+  A->>Q: Enqueue run
+  A-->>W: 202 Accepted
+
+  Q->>EV: Start run
+  alt Configuration changes chunking or embeddings
+    EV->>EV: Build separate index for this configuration
+  end
+  loop Each dataset item
+    EV->>R: Retrieve with configuration, record latency
+    R-->>EV: Ranked chunks
+    EV->>EV: Compute Recall@K, Precision@K, MRR, NDCG
+    opt Answer evaluation enabled
+      EV->>L: Generate answer
+      EV->>EV: Score correctness, faithfulness, relevance, citation correctness
+    end
+  end
+  EV->>DB: Save aggregate and per-item metrics
+  EV-)LS: Send results
+  alt Item fails
+    EV->>DB: Record item error and continue
+  end
+
+  AIA->>W: Compare runs and view feedback
+  W->>A: GET /eval/compare and /feedback
+  A->>DB: Load runs and user feedback
+  A-->>W: Side-by-side metrics

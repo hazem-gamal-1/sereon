@@ -1,0 +1,33 @@
+sequenceDiagram
+  actor KM as Knowledge Manager
+  participant W as Web App
+  participant A as API
+  participant DB as PostgreSQL
+
+  KM->>W: Create collection with department
+  W->>A: POST /collections
+  A->>A: Check role and organization
+  alt Not authorized
+    A-->>W: 403 Forbidden
+  else Name already used
+    A-->>W: 409 Conflict
+  else OK
+    A->>DB: Insert collection and audit log
+    A-->>W: Collection created
+  end
+
+  KM->>W: Grant members access
+  W->>A: PUT /collections/id/access
+  A->>DB: Verify members belong to same organization
+  alt Member from another organization
+    A-->>W: 422 Rejected
+  else OK
+    A->>DB: Upsert collection access rows and audit log
+    A-->>W: Access updated
+  end
+
+  KM->>W: Set document override
+  W->>A: PUT /documents/id/access
+  A->>DB: Upsert allow or deny and audit log
+  A-->>W: Override saved
+  Note over A,DB: Takes effect at the next retrieval. No re-indexing needed.

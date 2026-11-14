@@ -1,0 +1,226 @@
+erDiagram
+  ORGANIZATION ||--o{ MEMBERSHIP : has
+  USER ||--o{ MEMBERSHIP : joins
+  ORGANIZATION ||--o{ INVITATION : issues
+  ORGANIZATION ||--o{ COLLECTION : owns
+  COLLECTION ||--o{ COLLECTION_ACCESS : grants
+  MEMBERSHIP ||--o{ COLLECTION_ACCESS : receives
+  COLLECTION ||--o{ DOCUMENT : contains
+  USER ||--o{ DOCUMENT : owns
+  DOCUMENT ||--o{ DOCUMENT_VERSION : has
+  DOCUMENT ||--o{ DOCUMENT_ACCESS : overrides
+  MEMBERSHIP ||--o{ DOCUMENT_ACCESS : receives
+  DOCUMENT_VERSION ||--o{ CHUNK : split_into
+  DOCUMENT_VERSION ||--o{ INGESTION_JOB : processed_by
+  USER ||--o{ CONVERSATION : starts
+  CONVERSATION ||--o{ MESSAGE : contains
+  MESSAGE ||--o{ CITATION : cites
+  CHUNK ||--o{ CITATION : referenced_by
+  MESSAGE ||--o{ FEEDBACK : rated_by
+  USER ||--o{ FEEDBACK : gives
+  USER ||--o{ AGENT_RUN : submits
+  AGENT_RUN ||--o{ AGENT_STEP : has
+  AGENT_RUN ||--o{ REPORT : produces
+  AGENT_RUN ||--o{ APPROVAL_REQUEST : raises
+  AGENT_RUN |o--o{ TOOL_CALL : makes
+  APPROVAL_REQUEST |o--o{ TOOL_CALL : gates
+  ORGANIZATION ||--o{ AUDIT_LOG : records
+  ORGANIZATION ||--o{ EVAL_DATASET : owns
+  EVAL_DATASET ||--o{ EVAL_ITEM : contains
+  EVAL_DATASET ||--o{ EVAL_RUN : evaluated_by
+
+  ORGANIZATION {
+    uuid id PK
+    string name
+    string slug UK
+    timestamp created_at
+  }
+  USER {
+    uuid id PK
+    string email UK
+    string password_hash
+    string full_name
+    string status
+    timestamp created_at
+  }
+  MEMBERSHIP {
+    uuid id PK
+    uuid organization_id FK
+    uuid user_id FK
+    string role
+  }
+  INVITATION {
+    uuid id PK
+    uuid organization_id FK
+    string email
+    string role
+    string token_hash
+    string status
+    timestamp expires_at
+  }
+  COLLECTION {
+    uuid id PK
+    uuid organization_id FK
+    string name
+    string department
+    timestamp created_at
+  }
+  COLLECTION_ACCESS {
+    uuid id PK
+    uuid collection_id FK
+    uuid membership_id FK
+    string access_level
+  }
+  DOCUMENT {
+    uuid id PK
+    uuid organization_id FK
+    uuid collection_id FK
+    uuid owner_id FK
+    string filename
+    string file_type
+    bigint file_size
+    int current_version
+    string status
+    timestamp created_at
+    timestamp updated_at
+  }
+  DOCUMENT_VERSION {
+    uuid id PK
+    uuid document_id FK
+    int version_no
+    string storage_path
+    string checksum
+    string status
+    timestamp created_at
+  }
+  DOCUMENT_ACCESS {
+    uuid id PK
+    uuid document_id FK
+    uuid membership_id FK
+    string effect
+  }
+  CHUNK {
+    uuid id PK
+    uuid organization_id FK
+    uuid document_version_id FK
+    int chunk_index
+    int page_number
+    int char_start
+    int char_end
+    text content
+    string vector_id
+  }
+  INGESTION_JOB {
+    uuid id PK
+    uuid document_version_id FK
+    string status
+    int attempts
+    text error
+    timestamp finished_at
+  }
+  CONVERSATION {
+    uuid id PK
+    uuid organization_id FK
+    uuid user_id FK
+    string title
+    text summary
+    timestamp created_at
+  }
+  MESSAGE {
+    uuid id PK
+    uuid conversation_id FK
+    string role
+    text content
+    timestamp created_at
+  }
+  CITATION {
+    uuid id PK
+    uuid message_id FK
+    uuid chunk_id FK
+  }
+  FEEDBACK {
+    uuid id PK
+    uuid message_id FK
+    uuid user_id FK
+    int rating
+    text comment
+  }
+  AGENT_RUN {
+    uuid id PK
+    uuid organization_id FK
+    uuid user_id FK
+    text request
+    string status
+    string thread_id
+    timestamp created_at
+    timestamp finished_at
+  }
+  AGENT_STEP {
+    uuid id PK
+    uuid agent_run_id FK
+    string name
+    string status
+    text summary
+    timestamp started_at
+    timestamp finished_at
+  }
+  REPORT {
+    uuid id PK
+    uuid organization_id FK
+    uuid agent_run_id FK
+    string title
+    string storage_path
+    timestamp created_at
+  }
+  APPROVAL_REQUEST {
+    uuid id PK
+    uuid organization_id FK
+    uuid agent_run_id FK
+    uuid requested_by FK
+    uuid decided_by FK
+    string action_type
+    json payload
+    string status
+    timestamp expires_at
+    timestamp decided_at
+  }
+  TOOL_CALL {
+    uuid id PK
+    uuid organization_id FK
+    uuid agent_run_id FK
+    uuid approval_request_id FK
+    uuid user_id FK
+    string tool_name
+    json input
+    string status
+    timestamp created_at
+  }
+  AUDIT_LOG {
+    uuid id PK
+    uuid organization_id FK
+    uuid actor_id FK
+    string action
+    string resource_type
+    uuid resource_id
+    timestamp created_at
+  }
+  EVAL_DATASET {
+    uuid id PK
+    uuid organization_id FK
+    string name
+  }
+  EVAL_ITEM {
+    uuid id PK
+    uuid dataset_id FK
+    text question
+    json expected_document_ids
+    json expected_chunk_ids
+    text ground_truth
+  }
+  EVAL_RUN {
+    uuid id PK
+    uuid dataset_id FK
+    json config
+    json metrics
+    timestamp created_at
+  }
